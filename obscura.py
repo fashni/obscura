@@ -1,11 +1,11 @@
 import argparse
 import base64
 import os
+from functools import partial
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from tqdm import tqdm
 
 
 def encrypt(key, item):
@@ -50,32 +50,39 @@ def get_key(password):
   kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=390000)
   return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
+def recursive(command, directory, depth=0, max_depth=100):
+  cmd, prompt = command
+  print(f"scanning {directory}")
+  files = sorted([f for f in os.scandir(directory)], key=lambda x: [not x.is_file(), x.stat().st_size])
+  if files[0].is_file():
+    res = cmd(files[0])
+    if res is None:
+      return
+
+  for item in files:
+    if item.is_dir():
+      if depth < max_depth:
+        recursive(command, item.path, depth+1, max_depth)
+      continue
+    print(f"{prompt} {item.name}")
+    res = cmd(item)
+    if res is not None:
+      write_file(item, res)
+      os.remove(item)
+
 def parse_args():
   parser = argparse.ArgumentParser()
   parser.add_argument("directory", type=str)
   parser.add_argument("-p", "--password", dest="password", type=str, required=True)
+  parser.add_argument("-d", "--max-depth", dest="max_depth", type=int, default=100)
   parser.add_argument("-e", "--encrypt", action="store_true", help=argparse.SUPPRESS)
   return parser.parse_args()
 
 def main():
   args = parse_args()
   key = get_key(args.password)
-  files = sorted([f for f in os.scandir(args.directory) if f.is_file()], key=lambda x: x.stat().st_size)
-
-  cmd = encrypt if args.encrypt else decrypt
-  ops = "encrypting" if args.encrypt else "decrypting"
-
-  res = cmd(key, files[0])
-  if res is None:
-    return
-
-  pbar = tqdm(files)
-  for item in pbar:
-    pbar.set_description(f"{ops} {item.name[:20]+(item.name[20:] and '...')}")
-    res = cmd(key, item)
-    if res is not None:
-      write_file(item, res)
-      os.remove(item)
+  cmd = (partial(encrypt, key), "encrypting") if args.encrypt else (partial(decrypt, key), "decrypting")
+  recursive(cmd, args.directory, 0, args.max_depth)
 
 
 if __name__=="__main__":
