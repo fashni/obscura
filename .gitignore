@@ -26,6 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+release/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -50,6 +51,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+test/
 
 # Translations
 *.mo
@@ -105,10 +107,12 @@ celerybeat.pid
 .env
 .venv
 env/
+envs/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.vscode/
 
 # Spyder project settings
 .spyderproject
